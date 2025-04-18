@@ -6,7 +6,7 @@ print('\n ------ Testing ------ \n')
 
 total, correct = 0, 0
 for in_f in os.listdir('input'):
-    if not in_f[6:9].startswith('260'): 
+    if not in_f[6:9].startswith(''): 
         continue
 
     out_f = in_f.replace('input', 'output')
@@ -16,7 +16,7 @@ for in_f in os.listdir('input'):
     print(f'File: {in_f}')
 
     # execute the file
-    subprocess.run(['runghc', 'wss.hs', in_f])
+    subprocess.run(['runghc', 'ws.hs', in_f])
 
     if os.path.isfile(out_f):
         with open(out_f, 'r') as output, open(exp_f, 'r') as expected:
