@@ -9,11 +9,10 @@ import Control.Monad ()
 -- my imports
 import Text.Regex.Posix ((=~))
 import Data.Char (isDigit, toUpper, toLower)
-import Data.List (isInfixOf, nub, sortBy)
+import Data.List (nub, sortBy)
 import GHC.Float (int2Double, powerDouble)
 import Data.Bits (Bits(xor, shiftL, shiftR, complement))
 import Data.Fixed (mod')
-import Data.Matrix (Matrix, fromLists)
 import Data.Ord (comparing, Down (Down))
 
 
@@ -38,22 +37,18 @@ main = do
     writeFile outFName (unlines writeRes)      -- write each elements with a newline on it
 
 
--- string and token util functions 
+-- string utility functions 
 rmNewLines :: String -> String
 rmNewLines = map (\c -> if c == '\n' then ' ' else c)
 
-upperFirst :: [Char] -> [Char]
+upperFirst :: String -> String
 upperFirst (x : xs) = toUpper x : xs
 
-lowerFirst :: [Char] -> [Char]
+lowerFirst :: String -> String
 lowerFirst (x : xs) = toLower x : xs
 
 rmPrefix :: String -> String -> String
 rmPrefix pre input = drop (length pre) input
-
-tokensToString :: [StackElement] -> String
-tokensToString [] = ""
-tokensToString (x : xs) = valueAsString x ++ " " ++ tokensToString xs
 
 -- assuming the strings we are dealing with have quotes around them!
 addString :: String -> String -> String
@@ -112,6 +107,9 @@ showSDMat [] acc = acc ++ "]"
 showSDMat [x] acc = showSDMat [] (acc ++ showSDVector x)
 showSDMat (vec : xs) acc = showSDMat xs (acc ++ showSDVector vec ++ ", ")
 
+tokensToString :: [StackElement] -> String
+tokensToString [] = ""
+tokensToString (x : xs) = valueAsString x ++ " " ++ tokensToString xs
 
 
     ----------------------------------
@@ -174,15 +172,16 @@ parseArrayAndLambda (t : tokens) seen = parseArrayAndLambda tokens (seen ++ [t])
 parseArray :: [StackElement] -> [StackElement]
 parseArray tokens = parseArrayTokens tokens []
 
+-- generate a list fo tokens until the opening brace is hit. At this point create either 
+-- an SDVector or SDMatrix and reverse the seen tokens again! 
 parseArrayTokens :: [StackElement] -> [StackElement] -> [StackElement]
 parseArrayTokens ((Syntax "[") : xs) arrayBuilder = reverse (makeArrayLike arrayBuilder : xs)
 parseArrayTokens (x : xs) arrayBuilder = parseArrayTokens xs (x : arrayBuilder)
 
 makeArrayLike :: [StackElement] -> StackElement
-makeArrayLike arr =
-    if isMatrix arr
-    then SDMatrix (map extractVector arr)
-    else SDVector arr
+makeArrayLike arr
+    | isMatrix arr = SDMatrix (map extractVector arr)
+    | otherwise = SDVector arr
 
 extractVector :: StackElement -> [StackElement]
 extractVector (SDVector xs) = xs
@@ -197,7 +196,8 @@ parseLambda :: [StackElement] -> [StackElement]
 parseLambda tokens = parseLambdaTokens tokens []
 
 parseLambdaTokens :: [StackElement] -> [StackElement] -> [StackElement]
-parseLambdaTokens (BinFunc "|" : SDInt paramCount : Syntax "{" : xs) tokenBuilder = reverse (SDLambda paramCount tokenBuilder : xs)
+parseLambdaTokens (BinFunc "|" : SDInt paramCount : Syntax "{" : xs) tokenBuilder = 
+    reverse (SDLambda paramCount tokenBuilder : xs)
 parseLambdaTokens (x : xs) tokenBuilder = parseLambdaTokens xs (x : tokenBuilder)
 
 
@@ -215,17 +215,6 @@ execute (token : ts) stack = execute ts (executeToken token stack)   -- execute 
 executeToken :: StackElement -> Stack -> Stack
 executeToken token stack =
     case token of
-        -- data - simply push it onto the stack
-        SDInt _ -> push token stack
-        SDDouble _ -> push token stack
-        SDBool _ -> push token stack
-        SDString _ -> push token stack
-        SDVector _ -> push token stack
-        SDMatrix _ -> push token stack
-        SDLambda _ _ -> executeLambda token stack
-        SDVar _ -> error "Handled by Lambda itself!"
-        Syntax _ -> push token stack
-
         -- Stack manipulaion functions
         ManipFunc "DROP" -> pop stack    -- drop can simply call pop function!
         ManipFunc "DUP" -> dup stack
@@ -235,8 +224,8 @@ executeToken token stack =
         ManipFunc "ROLLD" -> rolld stack
         ManipFunc "IFELSE" -> ifelse stack
         ManipFunc "EVAL" -> eval stack
-        ManipFunc "SELF" -> error "Handled by Lambda itself!"
         ManipFunc "TRANSP" -> transpose stack
+        ManipFunc "SELF" -> error "Handled by Lambda itself!"
 
         -- binary functions
         BinFunc "+" -> applyBinOp stack bAdd
@@ -263,8 +252,15 @@ executeToken token stack =
         -- unary functions
         UnaryFunc "!" -> applyUnaryOp stack uNot
         UnaryFunc "~" -> applyUnaryOp stack uComplement
+        
+        -- lambda execution
+        SDLambda _ _ -> executeLambda token stack
+        SDVar _ -> error "Handled by Lambda itself!"
 
-        _ -> error "Unknown token!"
+        -- data tokens simply push onto the stack
+        -- SDInt, SDDouble, SDBool, SDString, SDVector, SDMatrix, Syntax
+        _ -> push token stack
+
 
 applyBinOp :: Stack -> (StackElement -> StackElement -> StackElement) -> Stack
 applyBinOp (Top r (Top l stack)) func = push (func l r) stack
@@ -452,19 +448,19 @@ pop :: Stack -> Stack
 pop stack = popn stack 1
 
 popn :: Stack -> Int -> Stack
-popn stack n = popNValues stack n 1
+popn stack n = popNHelper stack n 1
 
-popNValues :: Stack -> Int -> Int -> Stack
-popNValues (Top _ stack) n cur
+popNHelper :: Stack -> Int -> Int -> Stack
+popNHelper (Top _ stack) n cur
     | n == cur = stack
-    | otherwise = popNValues stack n (cur+1)
+    | otherwise = popNHelper stack n (cur+1)
 
 stackToList :: Stack -> [StackElement]
-stackToList stack = sToList stack []
+stackToList stack = stackToListHelper stack []
 
-sToList :: Stack -> [StackElement] -> [StackElement]
-sToList EmptyStack output = output
-sToList (Top t stack) output = sToList stack (t:output)
+stackToListHelper :: Stack -> [StackElement] -> [StackElement]
+stackToListHelper EmptyStack output = output
+stackToListHelper (Top t stack) output = stackToListHelper stack (t : output)
 
 
     ---------------------------------------
@@ -489,11 +485,11 @@ roll :: Stack -> Stack
 roll (Top (SDInt n) stack) = rollN stack n
 
 rolld :: Stack -> Stack
-rolld (Top (SDInt n) stack) = rolld_ stack n n
+rolld (Top (SDInt n) stack) = rolldHelper stack n n
 
-rolld_ :: Stack -> Int -> Int -> Stack -- we are calling rollN, n-1 times to effively roll in reverse!
-rolld_ stack rollC 1 = stack
-rolld_ stack rollC n = rolld_ (rollN stack rollC) rollC (n-1)
+rolldHelper :: Stack -> Int -> Int -> Stack -- we are calling rollN, n-1 times to effively roll in reverse!
+rolldHelper stack rollC 1 = stack
+rolldHelper stack rollC n = rolldHelper (rollN stack rollC) rollC (n-1)
 
 rollN :: Stack -> Int -> Stack
 rollN (Top t1 stack) n
@@ -501,10 +497,9 @@ rollN (Top t1 stack) n
     | otherwise = swapTop t1 (rollN stack (n-1))
 
 ifelse :: Stack -> Stack
-ifelse (Top (SDBool cond) (Top r (Top l stack))) =
-    if cond
-        then push l stack
-        else push r stack
+ifelse (Top (SDBool cond) (Top r (Top l stack)))
+    | cond      = push l stack
+    | otherwise = push r stack 
 
 eval :: Stack -> Stack
 eval (Top t stack) = executeToken t stack
