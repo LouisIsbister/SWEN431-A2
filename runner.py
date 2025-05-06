@@ -6,7 +6,7 @@ print('\n ------ Testing ------ \n')
 
 total, correct = 0, 0
 for in_f in os.listdir('input'):
-    if '' not in in_f: continue
+    if '-' not in in_f: continue
 
     out_f = in_f.replace('input', 'output')
     in_f = f'.\input\{in_f}'

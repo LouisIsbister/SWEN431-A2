@@ -1,3 +1,15 @@
+features used:
+  - composite data type (StackElement)
+  - overriding (of Show for StackElement)
+  - argument unpacking 
+  - function composition (e.g. SDBool . read . upperFirst)
+
+
+
+
+
+
+
 parse the values from the text file by:
  - reading the first element match, and adding it onto a list.
 
