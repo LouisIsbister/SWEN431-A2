@@ -9,9 +9,8 @@ import Data.Char (isDigit, toUpper, toLower)
 import Data.Fixed (mod')
 import Data.List (nub, sortBy, isPrefixOf, takeWhile, dropWhile)
 import Data.Ord (comparing, Down (Down))
-
 import GHC.Float (powerDouble)
-
+ 
 
     -------------------- 
     --- Main section --- 
@@ -80,7 +79,6 @@ data StackElement = SDInt Int | SDDouble Double | SDString String | SDBool Bool 
     deriving Eq
 
 instance Show StackElement where
-    show :: StackElement -> String
     show (SDInt x) = show x
     show (SDDouble x) = show x
     show (SDBool b) = lowerFirst (show b)
@@ -88,9 +86,12 @@ instance Show StackElement where
     show (SDMatrix mat) = showSDMatrix mat
     show (SDLambda paramCount tokens) = "{" ++ show paramCount ++ "|" ++ showSDVector tokens ++ "}"
 
-    show (SDVar str) = str     ; show (SDString str) = str
-    show (ManipFunc str) = str ; show (BinFunc str) = str
-    show (UnaryFunc str) = str ; show (Syntax str) = str
+    show (SDVar str) = str     
+    show (SDString str) = str
+    show (ManipFunc str) = str
+    show (BinFunc str) = str
+    show (UnaryFunc str) = str 
+    show (Syntax str) = str
 
     show Ignorable = error "Ignorable should have been ignored by tokenizer!"
     show ParseFail = error "ParseFail detected. Parsing process failed to identify a token!"
@@ -344,7 +345,7 @@ executeToken token stack =
         BinFunc ">="  -> applyBinOp stack bGtEq
         BinFunc "<="  -> applyBinOp stack bLtEq
         BinFunc ">"   -> applyBinOp stack bGt
-        BinFunc ">"   -> applyBinOp stack bLt
+        BinFunc "<"   -> applyBinOp stack bLt
         BinFunc "x"   -> applyBinOp stack crossProduct
         -- unary functions
         UnaryFunc "!" -> applyUnaryOp stack uNot

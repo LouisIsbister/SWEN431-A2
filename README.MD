@@ -1,2 +1,2 @@
 ## SWEN431 Assignment 2
-Create the same Stack Deluxe interpreter from Assignment 1, except this time using Haskell instead of Ruby!
+Implementation of the same Stack Deluxe interpreter from my SWEN431-A1 repository, except this time using Haskell instead of Ruby!
